@@ -21,8 +21,8 @@
 const char kWindowTitle[] = "LC1A_16_トヨダユウキ_TD1_課題";
 
 /******** ウィンドウサイズの指定 **********/
-const int kWinodowWidth = 1280; //x
-const int kWindowHeight = 720; //y
+const int kWindowWidth = 1920; //x
+const int kWindowHeight = 1080; //y
 
 /*********************************
     定数の宣言ここまで
@@ -32,7 +32,7 @@ const int kWindowHeight = 720; //y
 int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	// ライブラリの初期化
-	Novice::Initialize(kWindowTitle, kWinodowWidth, kWindowHeight);
+	Novice::Initialize(kWindowTitle, kWindowWidth, kWindowHeight);
 
 	// キー入力結果を受け取る箱
 	char keys[256] = {0};
@@ -42,15 +42,7 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		構造体宣言ここから
 	*********************************/
 
-	/*================================
-		コピペ用↓
-	=================================*/
-
-	/*********************************
-		大見出しコピペ
-	*********************************/
-
-	/********  **********/
+	/******** 二次元ベクトル **********/
 
 	typedef struct vector2 {
 
@@ -59,12 +51,29 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	};
 
+	/******** 距離 **********/
+
 	typedef struct Distance {
 
-		vector2 distance;
-		float length;
+		vector2 distance; //距離xy
+		float length; //実際距離
 
 	};
+
+	/******** 画像 **********/
+
+	typedef struct graph {
+
+		vector2 translate;
+		vector2 radius;
+		vector2 imgRadius;
+		vector2 drawStartArea;
+		vector2 drawEndArea;
+		int name;
+
+	};
+
+	/******** キャラクター **********/
 
 	typedef struct chara {
 
@@ -86,10 +95,6 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 	};
 
-	/*================================
-		コピペ用↑
-	=================================*/
-
 	/*********************************
 		構造体宣言ここまで
 	*********************************/
@@ -98,35 +103,134 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		変数宣言ここから
 	*********************************/
 
+	/******** シーン **********/
+	enum Scene {
+
+		TITLE,
+		GAME,
+		RESULT
+
+	};
+
+	int scenes = TITLE;
+
+	/******** ワールド座標原点 **********/
 	vector2 worldPosOrigin{
 
-		0,
-		kWindowHeight
+		0, //x
+		kWindowHeight //y
 
 	};
 
+	/******** スクロール **********/
+
+	//開始座標
+	vector2 scroolStartPos{
+
+		kWindowWidth - kWindowWidth / 2, //x
+		worldPosOrigin.y - kWindowHeight + kWindowHeight / 2 //y
+
+	};
+
+	//スクロール値
+	vector2 scrool{
+
+		0.0f, //x
+		0.0f //y
+
+	};
+
+	/******** 背景 **********/
+
+	int white1x1Png = Novice::LoadTexture("white1x1.png");
+
+	int bgGraph[6];
+
+	bgGraph[0] = Novice::LoadTexture("./resources/graph/map/BG_1.png");
+	bgGraph[1] = Novice::LoadTexture("./resources/graph/map/BG_2.png");
+	bgGraph[2] = Novice::LoadTexture("./resources/graph/map/BG_3.png");
+	bgGraph[3] = Novice::LoadTexture("./resources/graph/map/BG_4.png");
+	bgGraph[4] = Novice::LoadTexture("./resources/graph/map/BG_5.png");
+	bgGraph[5] = Novice::LoadTexture("./resources/graph/map/BG_6.png");
+
+	graph bg[6];
+
+	for (int i = 0; i < 6; i++) {
+
+		bg[i] = {
+
+			kWindowWidth / 2, kWindowHeight / 2,
+			kWindowWidth, kWindowHeight,
+			kWindowWidth, kWindowHeight,
+			0.0f, 0.0f,
+			1920.0f, 1080.0f,
+			bgGraph[i]
+
+		};
+
+	}
+
+	/******** プレイヤー **********/
 	chara player{
 
-		640.0f, 360.0f,
-		0.0f, 0.0f,
-		0.0f,
+		kWindowWidth * 1.5f, kWindowHeight, //translate x, y
+		0.0f, 0.0f, //moveDirection x, y
+		0.0f, //vectorLength
 
-		1.0f,
+		128.0f, //radius
 
-		5.0f,
-		5.0f,
+		5.0f, //speed
+		5.0f, //defSpeed
 
-		1,
+		1, //HP
 
-		10,
+		10, //damage
 
-		Novice::LoadTexture("./resources/graph/player/player.png"),
-		128
+		Novice::LoadTexture("./resources/graph/player/player.png"), //graph
+		128 //graphRadius
 
 	};
+
+	float theta = 0.0f;
+
+	//スペースキートリガー用
+	int isPressSpace = false;
+
+	//チャージできるか
+	int canCharge = true;
+	//現在チャージしているか
+	int isCharging = false;
+	//チャージが完了しているか
+	int compCharge = false;
+
+	//攻撃中か
+	int isAttacking = false;
+
+	//チャージされているパワー
+	float chargePower = 0.0f;
+	//パワーの最大値
+	float maxPower = 60.0f;
+
+	//チャージ可能までのクールタイム
+	float chargeCoolTime = 0.0f;
+	//チャージ可能までのクールタイムのデフォルト値
+	float defChargeCoolTime = 120.0f;
 
 	/*********************************
 		変数宣言ここまで
+	*********************************/
+
+	/*********************************
+		関数宣言ここから
+	*********************************/
+
+	/******** リソースロード **********/
+
+	void LoadTitleResource();
+
+
+	/*********************************
+		関数宣言ここまで
 	*********************************/
 
 	// ウィンドウの×ボタンが押されるまでループ
@@ -156,64 +260,259 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		    コピペ用↑
 		=================================*/
 
+		/*********************************
+			スクリーン関係ここから
+		*********************************/
+
 		/******** フルスクリーン **********/
 		Novice::SetWindowMode(kFullscreen);
 
-		/******** プレイヤー移動 **********/
-
-		//ベクトル初期化
-		player.moveDirection.x = 0.0f;
-		player.moveDirection.y = 0.0f;
-
-		//キーを押すとその方向に移動する
-		if (keys[DIK_UP] || keys[DIK_W]) {
-
-			player.moveDirection.y++;
-
-		}
-		
-		if (keys[DIK_LEFT] || keys[DIK_A]) {
-
-			player.moveDirection.x--;
-
-		}
-
-		if (keys[DIK_DOWN] || keys[DIK_S]) {
-
-			player.moveDirection.y--;
-
-		}
-
-		if (keys[DIK_LEFT] || keys[DIK_D]) {
-
-			player.moveDirection.x++;
-
-		}
-
-		//ベクトルの長さを求める
-		player.vectorLength = sqrt(pow(player.moveDirection.x, 2) + pow(player.moveDirection.y, 2));
-
-		//ベクトルの長さが0以外の時
-		if (player.vectorLength != 0.0f) {
-
-			//x方向の移動
-			player.translate.x += player.moveDirection.x / player.vectorLength * player.speed;
-
-			//y方向の移動
-			player.translate.y += player.moveDirection.y / player.vectorLength * player.speed;
-
-		}
-		else {
-
-			player.translate.x += player.moveDirection.x * player.speed;
-
-			player.translate.y += player.moveDirection.y * player.speed;
-
-		}
-
 		/*********************************
-			更新処理ここまで
+			スクリーン関係ここまで
 		*********************************/
+
+		switch (scenes)
+		{
+		case TITLE:
+
+			if (keys[DIK_SPACE] && preKeys[DIK_SPACE] == 0) {
+
+				scenes++;
+
+			}
+
+			break;
+
+		case GAME:
+
+			/*********************************
+				プレイヤー関係ここから
+			*********************************/
+
+			/******** プレイヤー移動 **********/
+
+			//ベクトル初期化
+			player.moveDirection.x = 0.0f;
+			player.moveDirection.y = 0.0f;
+
+			//移動方向指定
+			if (keys[DIK_UP] || keys[DIK_W]) {
+
+				player.moveDirection.y++; //上
+
+			}
+
+			if (keys[DIK_LEFT] || keys[DIK_A]) {
+
+				player.moveDirection.x--; //左
+
+			}
+
+			if (keys[DIK_DOWN] || keys[DIK_S]) {
+
+				player.moveDirection.y--; //下
+
+			}
+
+			if (keys[DIK_RIGHT] || keys[DIK_D]) {
+
+				player.moveDirection.x++; //右
+
+			}
+
+			if (isCharging == false && isAttacking == false) {
+
+				//ベクトルの長さを求める
+				player.vectorLength = sqrt(pow(player.moveDirection.x, 2) + pow(player.moveDirection.y, 2));
+
+				//ベクトルの長さが0以外の時
+				if (player.vectorLength != 0.0f) {
+
+					//x方向の移動
+					player.translate.x += player.moveDirection.x / player.vectorLength * player.speed;
+
+					//y方向の移動
+					player.translate.y += player.moveDirection.y / player.vectorLength * player.speed;
+
+				}
+				else {
+
+					//x方向の移動
+					player.translate.x += player.moveDirection.x * player.speed;
+
+					//y方向の移動
+					player.translate.y += player.moveDirection.y * player.speed;
+
+				}
+
+			}
+
+			if (player.translate.x <= 0 + player.radius / 2) {
+
+				player.translate.x = player.radius / 2;
+
+			}
+			else if (player.translate.x >= kWindowWidth * 3 - player.radius / 2) {
+
+				player.translate.x = kWindowWidth * 3 - player.radius / 2;
+
+			}
+
+			if (player.translate.y <= 0 + player.radius / 2) {
+
+				player.translate.y = player.radius / 2;
+
+			}
+			else if (player.translate.y >= kWindowHeight * 2 - player.radius / 2) {
+
+				player.translate.y = kWindowHeight * 2 - player.radius / 2;
+
+			}
+
+			/******** チャージ関係の処理 **********/
+
+			//スペースキー長押し
+			if (keys[DIK_SPACE]) {
+
+				//チャージ状態true
+				isCharging = true;
+
+			}
+			else {
+
+				//チャージ状態false
+				isCharging = false;
+
+			}
+
+			//チャージ状態trueの時
+			if (isCharging == true && isAttacking == false) {
+
+				if (chargePower < maxPower) {
+
+					//チャージ
+					chargePower += 5.0f;
+
+				}
+				else {
+
+					//一定の値を超えたら固定
+					chargePower = maxPower;
+
+				}
+
+				if (keys[DIK_RIGHT] || keys[DIK_D]) {
+
+					theta += 0.1f;
+
+				}
+
+				else if (keys[DIK_LEFT] || keys[DIK_A]) {
+
+					theta -= 0.1f;
+
+				}
+
+			}
+			else {
+
+				if (chargePower > 0) {
+
+					//スペースキーを離したらパワーが減る
+					chargePower -= 4.0f;
+
+				}
+				else {
+
+					//0以下になったら値を0にリセット
+					chargePower = 0;
+
+					isAttacking = false;
+
+				}
+
+			}
+
+			if (theta >= 6.0f) {
+
+				theta = 0.0f;
+
+			}
+			else if (theta < 0.0f) {
+
+				theta = 5.9f;
+
+			}
+
+			if (!keys[DIK_SPACE] && preKeys[DIK_SPACE]) {
+
+				if (isAttacking == false) {
+
+					isAttacking = true;
+
+				}
+
+			}
+
+			if (isAttacking == true) {
+
+				player.translate.x += (cosf(theta) * player.speed * chargePower / 3.0f);
+				player.translate.y += -(sinf(theta) * player.speed * chargePower / 3.0f);
+
+				chargePower--;
+
+			}
+
+			/*********************************
+				プレイヤー関係ここから
+			*********************************/
+
+			/*********************************
+				スクロール関係ここから
+			*********************************/
+
+			/******** スクロール処理 **********/
+
+			if (player.translate.x >= scroolStartPos.x || player.translate.x <= scroolStartPos.x) {
+
+				scrool.x = player.translate.x - scroolStartPos.x;
+
+			}
+			else {
+
+				scrool.x = 0.0f;
+
+			}
+
+			if (player.translate.y >= scroolStartPos.y || player.translate.y <= scroolStartPos.y) {
+
+				scrool.y = player.translate.y - scroolStartPos.y;
+
+			}
+			else {
+
+				scrool.y = 0.0f;
+
+			}
+
+			/*********************************
+				スクロール関係ここまで
+			*********************************/
+
+			/*********************************
+				更新処理ここまで
+			*********************************/
+
+
+			break;
+
+		case RESULT:
+
+
+
+			break;
+
+		}
 
 		/*********************************
 			描画処理ここから
@@ -233,20 +532,109 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 		    コピペ用↑
 		=================================*/
 
+		Novice::DrawQuad(
+
+			worldPosOrigin.x + player.translate.x - kWindowWidth / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y - kWindowHeight / 2 + scrool.y,
+
+			worldPosOrigin.x + player.translate.x + kWindowWidth / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y - kWindowHeight / 2 + scrool.y,
+
+			worldPosOrigin.x + player.translate.x - kWindowWidth / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y + kWindowHeight / 2 + scrool.y,
+
+			worldPosOrigin.x + player.translate.x + kWindowWidth / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y + kWindowHeight / 2 + scrool.y,
+
+			0,
+			0,
+
+			1,
+			1,
+
+			white1x1Png,
+			BLACK
+
+		);
+
+		/******** 背景描画 **********/
+
+		for (int i = 0; i < 3; i++) {
+
+
+			Novice::DrawQuad(
+
+				worldPosOrigin.x + bg[i].translate.x * (i + 1) + (kWindowWidth / 2 * i) - bg[i].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i].translate.y - bg[i].radius.y / 2 - (kWindowHeight) + scrool.y,
+
+				worldPosOrigin.x + bg[i].translate.x * (i + 1) + (kWindowWidth / 2 * i) + bg[i].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i].translate.y - bg[i].radius.y / 2 - (kWindowHeight) + scrool.y,
+
+				worldPosOrigin.x + bg[i].translate.x * (i + 1) + (kWindowWidth / 2 * i) - bg[i].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i].translate.y + bg[i].radius.y / 2 - (kWindowHeight) + scrool.y,
+
+				worldPosOrigin.x + bg[i].translate.x * (i + 1) + (kWindowWidth / 2 * i) + bg[i].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i].translate.y + bg[i].radius.y / 2 - (kWindowHeight) + scrool.y,
+
+				bg[i].drawStartArea.x,
+				bg[i].drawStartArea.y,
+
+				bg[i].drawEndArea.x,
+				bg[i].drawEndArea.y,
+
+				bg[i].name,
+				WHITE
+
+			);
+
+
+		}
+
+		for (int i = 0; i < 3; i++) {
+
+
+			Novice::DrawQuad(
+
+				worldPosOrigin.x + bg[i + 3].translate.x * (i + 1) + (kWindowWidth / 2 * i) - bg[i + 3].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i + 3].translate.y - bg[i + 3].radius.y / 2 + scrool.y,
+
+				worldPosOrigin.x + bg[i + 3].translate.x * (i + 1) + (kWindowWidth / 2 * i) + bg[i + 3].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i + 3].translate.y - bg[i].radius.y / 2 + scrool.y,
+
+				worldPosOrigin.x + bg[i + 3].translate.x * (i + 1) + (kWindowWidth / 2 * i) - bg[i + 3].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i + 3].translate.y + bg[i + 3].radius.y / 2 + scrool.y,
+
+				worldPosOrigin.x + bg[i + 3].translate.x * (i + 1) + (kWindowWidth / 2 * i) + bg[i + 3].radius.x / 2 - scrool.x,
+				worldPosOrigin.y - bg[i + 3].translate.y + bg[i + 3].radius.y / 2 + scrool.y,
+
+				bg[i + 3].drawStartArea.x,
+				bg[i + 3].drawStartArea.y,
+
+				bg[i + 3].drawEndArea.x,
+				bg[i + 3].drawEndArea.y,
+
+				bg[i + 3].name,
+				WHITE
+
+			);
+
+
+		}
+
 		/******** プレイヤー描画 **********/
 		Novice::DrawQuad(
 
-			worldPosOrigin.x + player.translate.x - player.graphRadius / 2,
-			worldPosOrigin.y - player.translate.y - player.graphRadius / 2,
+			worldPosOrigin.x + player.translate.x - player.radius / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y - player.radius / 2 + scrool.y,
 
-			worldPosOrigin.x + player.translate.x + player.graphRadius / 2,
-			worldPosOrigin.y - player.translate.y - player.graphRadius / 2,
+			worldPosOrigin.x + player.translate.x + player.radius / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y - player.radius / 2 + scrool.y,
 
-			worldPosOrigin.x + player.translate.x - player.graphRadius / 2,
-			worldPosOrigin.y - player.translate.y + player.graphRadius / 2,
+			worldPosOrigin.x + player.translate.x - player.radius / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y + player.radius / 2 + scrool.y,
 
-			worldPosOrigin.x + player.translate.x + player.graphRadius / 2,
-			worldPosOrigin.y - player.translate.y + player.graphRadius / 2,
+			worldPosOrigin.x + player.translate.x + player.radius / 2 - scrool.x,
+			worldPosOrigin.y - player.translate.y + player.radius / 2 + scrool.y,
 
 			0,
 			0,
@@ -266,6 +654,22 @@ int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
 
 		//スピード
 		Novice::ScreenPrintf(0, 30, "PSx : %4.2f PSy : %4.2f", player.speed, player.defSpeed);
+
+		//チャージされているパワー
+		Novice::ScreenPrintf(0, 50, "CP : %4.2f", chargePower);
+
+		Novice::ScreenPrintf(0, 70, "IsAt : %d", isAttacking);
+
+		Novice::ScreenPrintf(0, 90, "scrX : %4.2f scrY : %4.2f", scrool.x, scrool.y);
+
+		//発射方向
+		Novice::DrawLine(
+			worldPosOrigin.x + player.translate.x - scrool.x,
+			worldPosOrigin.y - player.translate.y + scrool.y,
+			worldPosOrigin.x + player.translate.x + (cosf(theta) * player.speed * 2 * chargePower / 3) - scrool.x,
+			worldPosOrigin.y - player.translate.y + (sinf(theta) * player.speed * 2 * chargePower / 3) + scrool.y,
+			WHITE
+		);
 
 		/*********************************
 			描画処理ここまで
